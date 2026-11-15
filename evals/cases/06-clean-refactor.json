@@ -1,0 +1,1 @@
+{ "id": "06-clean-refactor", "description": "Comments and a local variable only. A good reviewer stays quiet.", "clean": true, "expected": [] }

@@ -1,0 +1,18 @@
+diff --git a/src/api/paginate.ts b/src/api/paginate.ts
+new file mode 100644
+index 0000000..3c4d5e6
+--- /dev/null
++++ b/src/api/paginate.ts
+@@ -0,0 +1,12 @@
++export function paginate<T>(items: T[], page: number, pageSize: number) {
++  // page is 1-based
++  const start = page * pageSize;
++  const end = start + pageSize;
++  return {
++    data: items.slice(start, end),
++    page,
++    pageSize,
++    totalPages: Math.floor(items.length / pageSize),
++    hasNext: end < items.length,
++  };
++}

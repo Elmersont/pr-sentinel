@@ -1,0 +1,2 @@
+{ "id": "07-n-plus-one", "description": "One query per team member inside a loop", "clean": false,
+  "expected": [ { "file": "src/reports/team.ts", "categories": ["performance"], "lines": [6, 8] } ] }

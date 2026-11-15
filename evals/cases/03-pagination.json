@@ -1,0 +1,2 @@
+{ "id": "03-pagination", "description": "1-based page used as 0-based offset, and totalPages rounds down", "clean": false,
+  "expected": [ { "file": "src/api/paginate.ts", "categories": ["bug"], "lines": [3, 9] } ] }

@@ -1,0 +1,2 @@
+{ "id": "01-sql-injection", "description": "User input concatenated into a SQL string", "clean": false,
+  "expected": [ { "file": "src/users/repo.ts", "categories": ["security"], "lines": [16, 18] } ] }

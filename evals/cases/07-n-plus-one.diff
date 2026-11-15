@@ -1,0 +1,14 @@
+diff --git a/src/reports/team.ts b/src/reports/team.ts
+index 7a8b9c0..0d1e2f3 100644
+--- a/src/reports/team.ts
++++ b/src/reports/team.ts
+@@ -3,3 +3,9 @@ import { db } from '../db';
+ export async function teamReport(teamId: string) {
+   const members = await db.query('SELECT id, name FROM members WHERE team_id = $1', [teamId]);
++  const rows = [];
++  for (const m of members) {
++    const tasks = await db.query('SELECT COUNT(*) AS c FROM tasks WHERE assignee_id = $1', [m.id]);
++    rows.push({ name: m.name, open: tasks[0].c });
++  }
++  return rows;
+ }

@@ -1,0 +1,15 @@
+diff --git a/src/orders/service.ts b/src/orders/service.ts
+index 2b3c4d5..6e7f8a9 100644
+--- a/src/orders/service.ts
++++ b/src/orders/service.ts
+@@ -22,7 +22,8 @@ export class OrderService {
+   async checkout(userId: string, cart: Cart) {
+     const total = cart.items.reduce((s, i) => s + i.price * i.qty, 0);
+-    await this.payments.charge(userId, total);
+-    await this.inventory.reserve(cart.items);
++    this.payments.charge(userId, total);
++    await this.inventory.reserve(cart.items);
++    await this.emails.sendReceipt(userId, total);
+     return { ok: true, total };
+   }
+ }

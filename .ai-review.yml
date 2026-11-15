@@ -1,0 +1,27 @@
+# PR Sentinel configuration (this file reviews the repo itself).
+model: claude-sonnet-5-5
+language: en
+min_severity: low          # info | low | medium | high | critical
+fail_on: none              # set to "high" to block merges on serious findings
+max_findings: 15
+max_diff_chars: 60000
+inline_comments: false     # also post line-anchored review comments
+ignore:
+  - "dist/**"
+  - "evals/cases/**"       # intentionally buggy fixtures
+# Optional: show an estimated cost in the report (USD per million tokens, check your price list)
+# pricing:
+#   input_per_mtok: 3
+#   output_per_mtok: 15
+integrations:
+  jira:
+    enabled: false
+    project_key: ENG
+    issue_type: Task
+    min_severity: high
+  teams:
+    enabled: false
+    min_risk: high
+  slack:
+    enabled: false
+    min_risk: high

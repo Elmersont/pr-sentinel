@@ -1,0 +1,2 @@
+{ "id": "02-missing-await", "description": "Payment charge no longer awaited: failures are swallowed and receipts go out for unpaid orders", "clean": false,
+  "expected": [ { "file": "src/orders/service.ts", "categories": ["bug"], "lines": [24, 24] } ] }

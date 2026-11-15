@@ -1,0 +1,16 @@
+diff --git a/src/utils/format.ts b/src/utils/format.ts
+index 6f7a8b9..9c0d1e2 100644
+--- a/src/utils/format.ts
++++ b/src/utils/format.ts
+@@ -1,7 +1,10 @@
++/** Formats a number as a USD amount with two decimals. */
+ export function fmtPrice(n: number): string {
+-  return '$' + n.toFixed(2);
++  const rounded = n.toFixed(2);
++  return '$' + rounded;
+ }
+ 
++/** Formats a ratio (0.25) as a percentage string ("25.0%"). */
+ export function fmtPct(n: number): string {
+   return (n * 100).toFixed(1) + '%';
+ }

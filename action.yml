@@ -1,0 +1,51 @@
+name: 'PR Sentinel'
+description: 'LLM-powered pull request review with grounded findings, secret redaction, and optional Jira / Teams / Slack hooks.'
+author: 'Elmerson Torres Deza'
+branding:
+  icon: 'shield'
+  color: 'blue'
+
+inputs:
+  anthropic_api_key:
+    description: 'Anthropic API key (store it as a repository secret).'
+    required: true
+  github_token:
+    description: 'Token used to read the diff and post comments.'
+    required: false
+    default: ${{ github.token }}
+  config_path:
+    description: 'Path to the YAML config file.'
+    required: false
+    default: '.ai-review.yml'
+  model:
+    description: 'Overrides the model set in the config file.'
+    required: false
+  jira_base_url:
+    description: 'e.g. https://your-org.atlassian.net'
+    required: false
+  jira_email:
+    description: 'Jira account email used for API auth.'
+    required: false
+  jira_api_token:
+    description: 'Jira API token.'
+    required: false
+  teams_webhook_url:
+    description: 'Microsoft Teams (Workflows) webhook URL.'
+    required: false
+  slack_webhook_url:
+    description: 'Slack incoming webhook URL.'
+    required: false
+
+outputs:
+  risk:
+    description: 'low | medium | high'
+  findings_count:
+    description: 'Number of findings reported'
+  tokens:
+    description: 'Total tokens used (input + output)'
+  cost_usd:
+    description: 'Estimated cost, only when pricing is set in the config'
+
+runs:
+  using: 'node20'
+  main: 'dist/index.js'

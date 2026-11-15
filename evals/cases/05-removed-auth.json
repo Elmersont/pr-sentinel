@@ -1,0 +1,2 @@
+{ "id": "05-removed-auth", "description": "requireAdmin middleware dropped from admin routes", "clean": false,
+  "expected": [ { "file": "src/routes/admin.ts", "categories": ["security", "bug"], "lines": [7, 12] } ] }
