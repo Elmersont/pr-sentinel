@@ -82,7 +82,7 @@ describe('createProvider / config', () => {
   });
 
   it('builds the OpenAI-compatible provider from config, with the input overriding base_url', () => {
-    const cfg = parseConfig('provider: openai-compatible\nmodel: gemini-3.8-flash\nbase_url: http://a/v1\nreasoning_effort: low');
+    const cfg = parseConfig('provider: openai-compatible\nmodel: gemini-3.1-flash-lite\nbase_url: http://a/v1\nreasoning_effort: low');
     expect(createProvider(cfg, 'k')).toBeInstanceOf(OpenAICompatibleProvider);
     expect(cfg.reasoning_effort).toBe('low');
   });

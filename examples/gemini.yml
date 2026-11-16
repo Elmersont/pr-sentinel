@@ -3,7 +3,7 @@
 # Google to improve its products, so use this for public code only.
 provider: openai-compatible
 base_url: https://generativelanguage.googleapis.com/v1beta/openai/
-model: gemini-3.8-flash        # any model that shows a free tier in AI Studio
+model: gemini-3.1-flash-lite        # any model that shows a free tier in AI Studio
 reasoning_effort: low          # keeps "thinking" tokens from eating the output budget
 language: en
 max_findings: 10
