@@ -145,7 +145,9 @@ npm run eval -- --provider silent           # harness sanity check: must be 0% r
 
 The dataset in [`evals/cases`](evals/cases) has eight diffs: SQL injection, a dropped `await` on a payment, an off-by-one in pagination, hard-coded AWS credentials, a removed auth middleware, an N+1 query, a **prompt-injection attempt wrapped around `eval()`**, and a **clean refactor** where the right answer is silence. A case is a hit when the finding is in the right file, an accepted category and within ±2 lines. Findings of severity `medium` or higher that match nothing count as false positives.
 
-Results depend on the model you choose, so none are hard-coded here. The harness itself is validated offline in CI (oracle = 100%, silent = 0%) and the dataset's expected line numbers are unit-tested against the parsed diffs.
+**Measured result** (single run on 2026-11-16, `gemini-3.1-flash-lite` on Google's free tier, via the manual [Eval workflow](.github/workflows/eval.yml)): 7/7 seeded problems found, 0 false positives, clean refactor correctly left alone, ~8.2k tokens in total. Treat it as a smoke test, not a benchmark: eight hand-written cases, one run, one model, and results will vary with the model and over time. Re-run it yourself with your own model to get your own numbers.
+
+The harness itself is validated offline in CI (oracle = 100%, silent = 0%) and the dataset's expected line numbers are unit-tested against the parsed diffs.
 
 ## Local CLI
 

@@ -67,7 +67,9 @@ npm run eval -- --provider oracle        # sanidad del harness: debe dar 100%
 npm run eval -- --provider silent        # sanidad del harness: debe dar 0% de recall
 ```
 
-Los resultados dependen del modelo, por eso no hay cifras fijas en este README. El harness se valida sin conexión en el CI.
+**Resultado medido** (una sola ejecución el 16-11-2026, `gemini-3.1-flash-lite` en el nivel gratuito de Google, con el [workflow de evaluación](.github/workflows/eval.yml)): 7/7 problemas sembrados detectados, 0 falsos positivos, el refactor limpio se dejó sin comentarios, ~8,2k tokens en total. Es una prueba de humo, no un benchmark: ocho casos escritos a mano, una ejecución, un modelo; los resultados variarán según el modelo y con el tiempo. Ejecútalo con tu modelo para obtener tus propias cifras.
+
+El harness se valida sin conexión en el CI.
 
 ## Desarrollo
 
