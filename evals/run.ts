@@ -87,7 +87,7 @@ async function main() {
       result = await runReview({ title: c.description, body: '', diff }, cfg, provider);
     } catch (e) {
       console.error(`ERR   ${c.id.padEnd(24)} ${e instanceof Error ? e.message : e}`);
-      scores.push({ id: c.id, expected: c.expected.length, matched: 0, falsePositives: 0, clean: c.clean });
+      scores.push({ id: c.id, expected: c.expected.length, matched: 0, falsePositives: c.clean ? 1 : 0, clean: c.clean }); // an errored clean case must not count as a pass
       errors++;
       continue;
     }

@@ -2,7 +2,7 @@
 # This repo reviews its own PRs with the free Gemini tier (see examples/ for other providers).
 provider: openai-compatible
 base_url: https://generativelanguage.googleapis.com/v1beta/openai/
-model: gemini-2.5-flash
+model: gemini-3.8-flash
 reasoning_effort: low
 language: en
 min_severity: low          # info | low | medium | high | critical
