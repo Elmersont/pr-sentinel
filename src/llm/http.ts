@@ -5,6 +5,8 @@ export interface PostOptions {
   label: string;
   fetchImpl: typeof fetch;
   maxRetries: number;
+  /** Per-request timeout so a stalled connection cannot hang a run (default 120s). */
+  timeoutMs?: number;
 }
 
 /** POST JSON with exponential backoff; honours Retry-After on 429/5xx (capped at 60s). */
@@ -18,7 +20,12 @@ export async function postJson<T>(
   for (let attempt = 0; attempt <= opts.maxRetries; attempt++) {
     let res: Response;
     try {
-      res = await opts.fetchImpl(url, { method: 'POST', headers, body: JSON.stringify(body) });
+      res = await opts.fetchImpl(url, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(opts.timeoutMs ?? 120_000),
+      });
     } catch (e) {
       last = e; // network error: retry
       if (attempt >= opts.maxRetries) throw e;

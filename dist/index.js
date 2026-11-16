@@ -30727,7 +30727,12 @@ async function postJson(url, headers, body, opts) {
     for (let attempt = 0; attempt <= opts.maxRetries; attempt++) {
         let res;
         try {
-            res = await opts.fetchImpl(url, { method: 'POST', headers, body: JSON.stringify(body) });
+            res = await opts.fetchImpl(url, {
+                method: 'POST',
+                headers,
+                body: JSON.stringify(body),
+                signal: AbortSignal.timeout(opts.timeoutMs ?? 120_000),
+            });
         }
         catch (e) {
             last = e; // network error: retry
