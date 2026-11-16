@@ -72,7 +72,8 @@ async function main() {
     real = createProvider(cfg, key);
   }
 
-  const ids = readdirSync(CASES_DIR).filter((f) => f.endsWith('.json')).sort();
+  const only = arg('only');
+  const ids = readdirSync(CASES_DIR).filter((f) => f.endsWith('.json') && (!only || f.includes(only))).sort();
   const scores: CaseScore[] = [];
   let tokens = 0;
   let errors = 0;
@@ -83,6 +84,8 @@ async function main() {
     const diff = readFileSync(join(CASES_DIR, file.replace('.json', '.diff')), 'utf8');
     const provider = which === 'oracle' ? oracleFor(c) : which === 'silent' ? silent : (real as LLMProvider);
     let result;
+    const started = Date.now();
+    console.error(`...   ${c.id} (calling model)`);
     try {
       result = await runReview({ title: c.description, body: '', diff }, cfg, provider);
     } catch (e) {
@@ -91,6 +94,7 @@ async function main() {
       errors++;
       continue;
     }
+    console.error(`      ${c.id} answered in ${((Date.now() - started) / 1000).toFixed(1)}s`);
     tokens += result.usage.inputTokens + result.usage.outputTokens;
     const s = scoreCase(c, result.findings);
     scores.push(s);

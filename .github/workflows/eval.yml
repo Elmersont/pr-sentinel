@@ -7,6 +7,9 @@ on:
       delay_ms:
         description: 'Pause between cases in ms (raise it if you hit free-tier rate limits)'
         default: '8000'
+      only:
+        description: 'Only run cases whose file name contains this text (empty = all)'
+        default: ''
 
 permissions:
   contents: read
@@ -14,6 +17,7 @@ permissions:
 jobs:
   eval:
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -25,9 +29,10 @@ jobs:
         env:
           LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
           DELAY_MS: ${{ inputs.delay_ms }}
+          ONLY: ${{ inputs.only }}
         run: |
           set -o pipefail
-          npm run eval -- --config examples/gemini.yml --delay-ms "$DELAY_MS" --out evals/results.json | tee eval.log
+          npm run eval -- --config examples/gemini.yml --delay-ms "$DELAY_MS" ${ONLY:+--only "$ONLY"} --out evals/results.json | tee eval.log
       - name: Job summary
         if: always()
         run: |
