@@ -25,6 +25,12 @@ export const DEFAULT_IGNORE = [
 const Severity = z.enum(SEVERITIES);
 
 export const ConfigSchema = z.object({
+  /** "anthropic" (default) or any OpenAI-compatible server (Gemini API, Ollama, OpenRouter, ...). */
+  provider: z.enum(['anthropic', 'openai-compatible']).default('anthropic'),
+  /** Required for provider "openai-compatible", e.g. https://generativelanguage.googleapis.com/v1beta/openai/ */
+  base_url: z.string().url().optional(),
+  /** Passed as `reasoning_effort` to openai-compatible servers that support it. */
+  reasoning_effort: z.enum(['none', 'minimal', 'low', 'medium', 'high']).optional(),
   model: z.string().default('claude-sonnet-5-5'),
   language: z.enum(['en', 'es']).default('en'),
   max_diff_chars: z.number().int().positive().default(60_000),
@@ -79,7 +85,12 @@ export function parseConfig(yamlText: string | undefined): Config {
     const msg = result.error.issues.map((i) => `${i.path.join('.') || '(root)'}: ${i.message}`).join('; ');
     throw new Error(`Invalid .ai-review.yml: ${msg}`);
   }
-  return result.data;
+  const cfg = result.data;
+  if (cfg.provider === 'openai-compatible') {
+    const hasModel = typeof (raw as { model?: unknown } | null)?.model === 'string';
+    if (!hasModel) throw new Error('Invalid .ai-review.yml: model: required when provider is "openai-compatible"');
+  }
+  return cfg;
 }
 
 export function effectiveIgnore(cfg: Config): string[] {

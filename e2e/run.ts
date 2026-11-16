@@ -62,6 +62,9 @@ const server = http.createServer(async (req, res) => {
   if (req.method === 'POST' && url === '/v1/messages') {
     return json(res, 200, { content: [{ type: 'text', text: '```json\n' + MODEL_REPLY + '\n```' }], usage: { input_tokens: 1200, output_tokens: 300 } });
   }
+  if (req.method === 'POST' && url === '/openai/chat/completions') {
+    return json(res, 200, { choices: [{ message: { content: MODEL_REPLY } }], usage: { prompt_tokens: 900, completion_tokens: 100 } });
+  }
   if (req.method === 'POST' && url === '/rest/api/2/issue') return json(res, 201, { key: `ENG-${++jiraCount}` });
   if (req.method === 'POST' && (url === '/hook/teams' || url === '/hook/slack')) return json(res, 200, {});
   json(res, 404, { error: `unhandled ${req.method} ${url}` });
@@ -75,6 +78,13 @@ function runAction(env: NodeJS.ProcessEnv, cwd: string): Promise<{ code: number 
     child.stderr.on('data', (d) => (out += d));
     child.on('close', (code) => done({ code, out }));
   });
+}
+
+/** GITHUB_OUTPUT must point at an existing file, like on a real runner. */
+function outFile(dir: string, name: string): string {
+  const p = join(dir, name);
+  writeFileSync(p, '');
+  return p;
 }
 
 const count = (method: string, url: string) => hits.filter((h) => h.method === method && h.url === url).length;
@@ -100,8 +110,7 @@ async function main() {
   };
 
   // ---- Run 1
-  const out1 = join(dir, 'out1.txt');
-  writeFileSync(out1, '');
+  const out1 = outFile(dir, 'out1.txt');
   const r1 = await runAction({ ...baseEnv, GITHUB_OUTPUT: out1 }, dir);
   assert.strictEqual(r1.code, 1, `run 1 should fail the check (fail_on: high). Output:\n${r1.out}`);
   assert.match(r1.out, /1 finding\(s\) at or above "high"/);
@@ -129,8 +138,9 @@ async function main() {
   assert.strictEqual(out('cost_usd'), '0.0081');
 
   // ---- Run 2 (same PR, e.g. another push): must update in place and not duplicate side effects
-  const r2 = await runAction({ ...baseEnv, GITHUB_OUTPUT: join(dir, 'out2.txt') }, dir);
+  const r2 = await runAction({ ...baseEnv, GITHUB_OUTPUT: outFile(dir, 'out2.txt') }, dir);
   assert.strictEqual(r2.code, 1);
+  assert.doesNotMatch(r2.out, /::error::(?!1 finding)/, 'run 2 must fail only because of fail_on');
   assert.strictEqual(comments.length, 1, 'still one comment (updated in place)');
   assert.strictEqual(count('PATCH', '/repos/o/r/issues/comments/1'), 1);
   assert.strictEqual(jiraCount, 1, 'Jira ticket not duplicated');
@@ -139,12 +149,33 @@ async function main() {
 
   // ---- Run 3: no API key (fork PR) -> skip quietly, exit 0, no model call
   const before = count('POST', '/v1/messages');
-  const r3 = await runAction({ ...baseEnv, INPUT_ANTHROPIC_API_KEY: '', GITHUB_OUTPUT: join(dir, 'out3.txt') }, dir);
+  const r3 = await runAction({ ...baseEnv, INPUT_ANTHROPIC_API_KEY: '', GITHUB_OUTPUT: outFile(dir, 'out3.txt') }, dir);
   assert.strictEqual(r3.code, 0);
   assert.match(r3.out, /Skipping review/);
   assert.strictEqual(count('POST', '/v1/messages'), before);
 
-  console.log('e2e: all assertions passed (3 runs: create, idempotent update, fork-PR skip)');
+  // ---- Run 4: free-provider path (provider: openai-compatible) selected purely by config + llm_api_key
+  writeFileSync(join(dir, 'free.yml'), [
+    'provider: openai-compatible', `base_url: ${base}/openai/`, 'model: gemini-test', 'reasoning_effort: low',
+    'integrations:', '  jira:', '    enabled: true', '    project_key: ENG',
+  ].join('\n'));
+  const oaBefore = count('POST', '/openai/chat/completions');
+  const r4 = await runAction(
+    { ...baseEnv, INPUT_ANTHROPIC_API_KEY: '', INPUT_LLM_API_KEY: 'free-key', INPUT_CONFIG_PATH: 'free.yml', GITHUB_OUTPUT: outFile(dir, 'out4.txt') },
+    dir,
+  );
+  assert.strictEqual(r4.code, 0, `run 4 should pass (no fail_on). Output:\n${r4.out}`);
+  assert.strictEqual(count('POST', '/openai/chat/completions'), oaBefore + 1, 'OpenAI-compatible endpoint was called');
+  const oaCall = hits.filter((h) => h.url === '/openai/chat/completions').at(-1) as Hit;
+  const oaBody = JSON.parse(oaCall.body);
+  assert.strictEqual(oaBody.model, 'gemini-test');
+  assert.strictEqual(oaBody.reasoning_effort, 'low');
+  assert.strictEqual(oaBody.messages[0].role, 'system');
+  assert.strictEqual(count('POST', '/v1/messages'), before, 'Anthropic endpoint untouched in run 4');
+  assert.strictEqual(jiraCount, 1, 'Jira still idempotent with the new provider');
+  assert.match(comments[0].body, /1000 tokens/);
+
+  console.log('e2e: all assertions passed (4 runs: create, idempotent update, fork-PR skip, free-provider path)');
   console.log('\n----- sticky comment as posted -----\n' + comments[0].body);
   server.close();
 }

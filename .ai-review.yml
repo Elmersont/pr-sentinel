@@ -1,5 +1,9 @@
 # PR Sentinel configuration (this file reviews the repo itself).
-model: claude-sonnet-5-5
+# This repo reviews its own PRs with the free Gemini tier (see examples/ for other providers).
+provider: openai-compatible
+base_url: https://generativelanguage.googleapis.com/v1beta/openai/
+model: gemini-2.5-flash
+reasoning_effort: low
 language: en
 min_severity: low          # info | low | medium | high | critical
 fail_on: none              # set to "high" to block merges on serious findings

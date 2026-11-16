@@ -1,0 +1,9 @@
+# Free option: Google Gemini API free tier (key from https://aistudio.google.com/apikey, no card needed).
+# Check the current free models and rate limits in AI Studio; they change. Free-tier data may be used by
+# Google to improve its products, so use this for public code only.
+provider: openai-compatible
+base_url: https://generativelanguage.googleapis.com/v1beta/openai/
+model: gemini-2.5-flash        # any model that shows a free tier in AI Studio
+reasoning_effort: low          # keeps "thinking" tokens from eating the output budget
+language: en
+max_findings: 10

@@ -6,7 +6,7 @@ import { formatReport, parseCreatedFingerprints, parseInlinedFingerprints } from
 import { findStickyComment, getPrDiff, postInlineReview, upsertComment } from './github';
 import { createJiraIssues } from './integrations/jira';
 import { postWebhook, shouldNotify, slackPayload, teamsPayload } from './integrations/chat';
-import { AnthropicProvider } from './llm/anthropic';
+import { createProvider } from './llm/factory';
 import { estimateCostUsd, fingerprint, runReview } from './review';
 import { severityRank } from './schema';
 
@@ -17,10 +17,10 @@ async function run(): Promise<void> {
     return;
   }
 
-  const apiKey = core.getInput('anthropic_api_key');
+  const apiKey = core.getInput('llm_api_key') || core.getInput('anthropic_api_key');
   if (!apiKey) {
     // Fork PRs do not receive secrets. Skip quietly instead of failing the check.
-    core.warning('anthropic_api_key is empty (fork PR or missing secret). Skipping review.');
+    core.warning('llm_api_key / anthropic_api_key is empty (fork PR or missing secret). Skipping review.');
     return;
   }
 
@@ -33,7 +33,7 @@ async function run(): Promise<void> {
   const octokit = github.getOctokit(core.getInput('github_token', { required: true }));
 
   const diff = await getPrDiff(octokit, target);
-  const provider = new AnthropicProvider({ apiKey, model: cfg.model });
+  const provider = createProvider(cfg, apiKey, { baseUrl: core.getInput('llm_base_url') || undefined });
   const result = await runReview({ title: pr.title ?? '', body: pr.body ?? '', diff }, cfg, provider);
 
   const prRef = {

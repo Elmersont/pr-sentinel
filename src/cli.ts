@@ -1,12 +1,13 @@
 /**
  * Local usage:
- *   ANTHROPIC_API_KEY=... npx tsx src/cli.ts --diff change.diff [--config .ai-review.yml]
- *   git diff main | ANTHROPIC_API_KEY=... npx tsx src/cli.ts --diff -
+ *   LLM_API_KEY=... npx tsx src/cli.ts --diff change.diff [--config .ai-review.yml]
+ *   git diff main | LLM_API_KEY=... npx tsx src/cli.ts --diff -
+ * LLM_API_KEY falls back to ANTHROPIC_API_KEY. For a local Ollama server any non-empty value works.
  */
 import { existsSync, readFileSync } from 'fs';
 import { parseConfig } from './config';
 import { formatReport } from './format';
-import { AnthropicProvider } from './llm/anthropic';
+import { createProvider } from './llm/factory';
 import { runReview } from './review';
 
 function arg(name: string): string | undefined {
@@ -20,9 +21,9 @@ async function main() {
     console.error('Usage: cli --diff <file|-> [--config .ai-review.yml] [--title "..."]');
     process.exit(2);
   }
-  const apiKey = process.env.ANTHROPIC_API_KEY;
+  const apiKey = process.env.LLM_API_KEY ?? process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
-    console.error('Set ANTHROPIC_API_KEY.');
+    console.error('Set LLM_API_KEY (or ANTHROPIC_API_KEY).');
     process.exit(2);
   }
   const diff = diffPath === '-' ? readFileSync(0, 'utf8') : readFileSync(diffPath, 'utf8');
@@ -32,7 +33,7 @@ async function main() {
   const result = await runReview(
     { title: arg('title') ?? 'Local review', body: '', diff },
     cfg,
-    new AnthropicProvider({ apiKey, model: cfg.model }),
+    createProvider(cfg, apiKey),
   );
   console.log(formatReport(result, cfg));
 }

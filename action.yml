@@ -7,8 +7,14 @@ branding:
 
 inputs:
   anthropic_api_key:
-    description: 'Anthropic API key (store it as a repository secret).'
-    required: true
+    description: 'Anthropic API key (repository secret). Use this OR llm_api_key.'
+    required: false
+  llm_api_key:
+    description: 'API key for any provider set in .ai-review.yml (e.g. a free Gemini API key). Takes precedence over anthropic_api_key.'
+    required: false
+  llm_base_url:
+    description: 'Overrides base_url from the config (provider: openai-compatible).'
+    required: false
   github_token:
     description: 'Token used to read the diff and post comments.'
     required: false

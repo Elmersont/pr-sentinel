@@ -1,0 +1,8 @@
+# Free and private: a local Ollama server (https://ollama.com). Works for the CLI and the eval on your own
+# machine; GitHub-hosted runners cannot reach localhost. Smaller local models are noticeably weaker reviewers.
+#   ollama pull qwen2.5-coder:7b
+#   LLM_API_KEY=ollama npm run eval -- --config examples/ollama.yml
+provider: openai-compatible
+base_url: http://localhost:11434/v1
+model: qwen2.5-coder:7b
+max_output_tokens: 3000

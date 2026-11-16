@@ -1,6 +1,6 @@
 # 🛡️ PR Sentinel
 
-**Un revisor de Pull Requests con IA en el que sí se puede confiar dentro del CI.** Publica un único comentario por PR con nivel de riesgo y hallazgos que citan líneas reales del diff, enmascara secretos antes de enviar nada a un tercero, resiste prompt injection escondido en el código revisado y trae una suite de evaluación para medirlo en vez de adivinar.
+**Un revisor de Pull Requests con IA en el que sí se puede confiar dentro del CI, con el modelo que elijas, incluidos gratuitos.** Publica un único comentario por PR con nivel de riesgo y hallazgos que citan líneas reales del diff, enmascara secretos antes de enviar nada a un tercero, resiste prompt injection escondido en el código revisado y trae una suite de evaluación para medirlo en vez de adivinar.
 
 > 🇬🇧 [Read in English](README.md)
 
@@ -16,7 +16,7 @@
 
 ## Inicio rápido
 
-1. Guarda `ANTHROPIC_API_KEY` como secreto del repositorio.
+1. Elige un proveedor (hay uno gratuito, ver más abajo) y guarda su clave como secreto del repositorio llamado `LLM_API_KEY`.
 2. Crea `.github/workflows/pr-sentinel.yml`:
 
 ```yaml
@@ -34,12 +34,22 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: Elmersont/pr-sentinel@v0.1.0
+      - uses: Elmersont/pr-sentinel@v0.2.0
         with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          llm_api_key: ${{ secrets.LLM_API_KEY }}
 ```
 
-3. (Opcional) agrega un `.ai-review.yml` en la raíz. Mira [`.ai-review.yml`](.ai-review.yml) para ver todas las opciones, incluido `language: es` para recibir los hallazgos en español.
+3. Agrega un `.ai-review.yml` en la raíz que elija el proveedor: copia uno de [`examples/`](examples) (`gemini.yml`, `ollama.yml`, `anthropic.yml`). Mira [`.ai-review.yml`](.ai-review.yml) para ver todas las opciones, incluido `language: es` para recibir los hallazgos en español.
+
+## Elegir proveedor de modelo
+
+| Proveedor | Costo | Config | Notas |
+|---|---|---|---|
+| **Gemini API** (`openai-compatible`) | Nivel gratuito, sin tarjeta | [`examples/gemini.yml`](examples/gemini.yml) | Clave en [AI Studio](https://aistudio.google.com/apikey). Los límites gratuitos son bajos y cambian; Google puede usar los datos del nivel gratuito para mejorar sus productos, así que úsalo con código público. |
+| **Ollama** local | Gratis y privado | [`examples/ollama.yml`](examples/ollama.yml) | Solo en tu máquina (CLI y eval), no desde los runners de GitHub. Los modelos pequeños revisan peor. |
+| `anthropic` | De pago (créditos de API) | [`examples/anthropic.yml`](examples/anthropic.yml) | Es el valor por defecto si no hay configuración. |
+
+Sirve cualquier servidor con `POST {base_url}/chat/completions`. GitHub Models no se usa porque se cerró el 30 de julio de 2026.
 
 > **PRs desde forks:** GitHub no entrega secretos a los workflows disparados por forks, así que la Action avisa y omite la revisión en lugar de fallar. No uses `pull_request_target` para esto.
 
@@ -52,7 +62,7 @@ jobs:
 ## Evaluación
 
 ```bash
-ANTHROPIC_API_KEY=... npm run eval       # modelo real
+LLM_API_KEY=... npm run eval -- --config examples/gemini.yml --delay-ms 8000   # modelo real, apto para nivel gratuito
 npm run eval -- --provider oracle        # sanidad del harness: debe dar 100%
 npm run eval -- --provider silent        # sanidad del harness: debe dar 0% de recall
 ```

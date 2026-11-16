@@ -4,7 +4,7 @@
 ![License](https://img.shields.io/badge/license-MIT-blue)
 ![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178c6)
 
-**An LLM pull-request reviewer you can actually trust in CI.** It posts one comment per PR with a risk level and findings that cite real lines of the diff, redacts secrets before anything leaves the runner, resists prompt injection hidden in the code it reviews, and ships with an eval suite so you can measure it instead of guessing.
+**An LLM pull-request reviewer you can actually trust in CI, with the model of your choice, including free ones.** It posts one comment per PR with a risk level and findings that cite real lines of the diff, redacts secrets before anything leaves the runner, resists prompt injection hidden in the code it reviews, and ships with an eval suite so you can measure it instead of guessing.
 
 > 🇪🇸 [Leer en español](README.es.md)
 
@@ -24,7 +24,7 @@ Most "AI code review" demos break in the same ways. PR Sentinel is built around 
 
 ## Quick start
 
-1. Add `ANTHROPIC_API_KEY` as a repository secret.
+1. Pick a provider and add its key as a repository secret named `LLM_API_KEY` (see [Choose a model provider](#choose-a-model-provider), there is a free option).
 2. Create `.github/workflows/pr-sentinel.yml`:
 
 ```yaml
@@ -42,12 +42,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4          # only needed to read .ai-review.yml
-      - uses: Elmersont/pr-sentinel@v0.1.0
+      - uses: Elmersont/pr-sentinel@v0.2.0
         with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          llm_api_key: ${{ secrets.LLM_API_KEY }}
 ```
 
-3. (Optional) add an `.ai-review.yml` at the repo root. See [`.ai-review.yml`](.ai-review.yml) for every option.
+3. Add an `.ai-review.yml` at the repo root selecting the provider. Copy one from [`examples/`](examples) (`gemini.yml`, `ollama.yml`, `anthropic.yml`) or see [`.ai-review.yml`](.ai-review.yml) for every option. Without a config file the default provider is Anthropic.
 
 > **Fork PRs:** GitHub does not pass secrets to workflows triggered by forks, so the action logs a warning and skips the review instead of failing. Avoid `pull_request_target` for this, since it would run with secrets on untrusted code.
 
@@ -71,9 +71,24 @@ Adds a name search that builds SQL by string concatenation.
 
 *(Format illustration produced by the end-to-end test with a stubbed model, see [`e2e/run.ts`](e2e/run.ts).)*
 
+## Choose a model provider
+
+PR Sentinel talks to the model through a one-method interface, and ships two implementations:
+
+| Provider | Cost | Config | Notes |
+|---|---|---|---|
+| `openai-compatible` + Google **Gemini API** | Free tier (no card) | [`examples/gemini.yml`](examples/gemini.yml) | Key from [AI Studio](https://aistudio.google.com/apikey). Free-tier rate limits are small and change, and Google may use free-tier data to improve its products, so use it for public code. |
+| `openai-compatible` + **Ollama** (local) | Free, private | [`examples/ollama.yml`](examples/ollama.yml) | Runs on your machine only (CLI and eval). GitHub-hosted runners cannot reach `localhost`. Small local models review noticeably worse. |
+| `anthropic` | Paid (API credits) | [`examples/anthropic.yml`](examples/anthropic.yml) | Default when no config is present. |
+
+Any server that exposes `POST {base_url}/chat/completions` works with `provider: openai-compatible` (OpenRouter, vLLM, LM Studio...). Set `llm_base_url` in the workflow to override `base_url` without touching the config.
+
+> The retired GitHub Models service is intentionally not used: it was shut down on July 30, 2026.
+
 ## Configuration highlights
 
 ```yaml
+provider: anthropic         # or: openai-compatible (then base_url + model are required)
 model: claude-sonnet-5-5
 language: en                # en | es
 min_severity: low           # hide findings below this
@@ -88,7 +103,9 @@ integrations:
 
 | Action input | Purpose |
 |---|---|
-| `anthropic_api_key` | Required. |
+| `llm_api_key` | API key for the provider in your config. Falls back to `anthropic_api_key`. |
+| `anthropic_api_key` | Same, kept for Anthropic-only setups. |
+| `llm_base_url` | Overrides `base_url` from the config. |
 | `jira_base_url`, `jira_email`, `jira_api_token` | One Jira issue per finding at or above `min_severity`. |
 | `teams_webhook_url` / `slack_webhook_url` | Notify when PR risk reaches `min_risk`. |
 | `model`, `config_path`, `github_token` | Overrides. |
@@ -119,10 +136,12 @@ The code is small and layered: [`diff.ts`](src/diff.ts) (parser) → [`redact.ts
 ## Evaluation
 
 ```bash
-ANTHROPIC_API_KEY=... npm run eval          # real model
+LLM_API_KEY=... npm run eval -- --config examples/gemini.yml --delay-ms 8000   # real model, free tier friendly
 npm run eval -- --provider oracle           # harness sanity check: must be 100%
 npm run eval -- --provider silent           # harness sanity check: must be 0% recall
 ```
+
+`--delay-ms` pauses between cases so free-tier rate limits do not turn into false misses; cases that error are reported as `ERR` and counted as misses.
 
 The dataset in [`evals/cases`](evals/cases) has eight diffs: SQL injection, a dropped `await` on a payment, an off-by-one in pagination, hard-coded AWS credentials, a removed auth middleware, an N+1 query, a **prompt-injection attempt wrapped around `eval()`**, and a **clean refactor** where the right answer is silence. A case is a hit when the finding is in the right file, an accepted category and within ±2 lines. Findings of severity `medium` or higher that match nothing count as false positives.
 
@@ -131,19 +150,19 @@ Results depend on the model you choose, so none are hard-coded here. The harness
 ## Local CLI
 
 ```bash
-git diff main | ANTHROPIC_API_KEY=... npx tsx src/cli.ts --diff -
+git diff main | LLM_API_KEY=... npx tsx src/cli.ts --diff - --config examples/gemini.yml
 # or with Docker
-docker build -t pr-sentinel . && git diff main | docker run -i -e ANTHROPIC_API_KEY pr-sentinel --diff -
+docker build -t pr-sentinel . && git diff main | docker run -i -e LLM_API_KEY pr-sentinel --diff -
 ```
 
-`ANTHROPIC_BASE_URL` is honoured for gateways and proxies.
+`LLM_API_KEY` falls back to `ANTHROPIC_API_KEY`, and `ANTHROPIC_BASE_URL` is honoured for gateways and proxies.
 
 ## Development
 
 ```bash
 npm ci
 npm run typecheck && npm test      # unit tests (Jest)
-npm run build && npm run e2e       # bundled action vs fake GitHub / Anthropic / Jira / Teams
+npm run build && npm run e2e       # bundled action vs fake GitHub / Anthropic / OpenAI-compatible / Jira / Teams
 ```
 
 `dist/` is committed because GitHub Actions run the bundle directly. CI fails if it is stale.
@@ -152,7 +171,7 @@ npm run build && npm run e2e       # bundled action vs fake GitHub / Anthropic /
 
 - Reviews the **diff only**, with no repository-wide context, so cross-file issues can be missed.
 - Secret redaction is regex-based and **best-effort**; it will not catch every secret format. Keep real secrets out of commits regardless.
-- One model call per PR (plus one repair retry): large PRs are truncated to `max_diff_chars` and the report says which files were skipped.
+- Free tiers have small rate limits that can change; very busy repos may hit them. One model call per PR (plus one repair retry): large PRs are truncated to `max_diff_chars` and the report says which files were skipped.
 - LLM reviews produce false positives and false negatives. Treat it as a first pass that saves reviewers time, not as a gate you rely on alone. Use `fail_on` deliberately.
 - Inline comments can only anchor on lines inside the diff; anything else stays in the summary comment.
 

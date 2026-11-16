@@ -29955,6 +29955,12 @@ exports.DEFAULT_IGNORE = [
 ];
 const Severity = zod_1.z.enum(schema_1.SEVERITIES);
 exports.ConfigSchema = zod_1.z.object({
+    /** "anthropic" (default) or any OpenAI-compatible server (Gemini API, Ollama, OpenRouter, ...). */
+    provider: zod_1.z.enum(['anthropic', 'openai-compatible']).default('anthropic'),
+    /** Required for provider "openai-compatible", e.g. https://generativelanguage.googleapis.com/v1beta/openai/ */
+    base_url: zod_1.z.string().url().optional(),
+    /** Passed as `reasoning_effort` to openai-compatible servers that support it. */
+    reasoning_effort: zod_1.z.enum(['none', 'minimal', 'low', 'medium', 'high']).optional(),
     model: zod_1.z.string().default('claude-sonnet-5-5'),
     language: zod_1.z.enum(['en', 'es']).default('en'),
     max_diff_chars: zod_1.z.number().int().positive().default(60_000),
@@ -30006,7 +30012,13 @@ function parseConfig(yamlText) {
         const msg = result.error.issues.map((i) => `${i.path.join('.') || '(root)'}: ${i.message}`).join('; ');
         throw new Error(`Invalid .ai-review.yml: ${msg}`);
     }
-    return result.data;
+    const cfg = result.data;
+    if (cfg.provider === 'openai-compatible') {
+        const hasModel = typeof raw?.model === 'string';
+        if (!hasModel)
+            throw new Error('Invalid .ai-review.yml: model: required when provider is "openai-compatible"');
+    }
+    return cfg;
 }
 function effectiveIgnore(cfg) {
     return [...exports.DEFAULT_IGNORE, ...cfg.ignore];
@@ -30404,7 +30416,7 @@ const format_1 = __nccwpck_require__(6264);
 const github_1 = __nccwpck_require__(9248);
 const jira_1 = __nccwpck_require__(315);
 const chat_1 = __nccwpck_require__(5249);
-const anthropic_1 = __nccwpck_require__(5815);
+const factory_1 = __nccwpck_require__(6025);
 const review_1 = __nccwpck_require__(7491);
 const schema_1 = __nccwpck_require__(5060);
 async function run() {
@@ -30413,10 +30425,10 @@ async function run() {
         core.info('Not a pull_request event; nothing to do.');
         return;
     }
-    const apiKey = core.getInput('anthropic_api_key');
+    const apiKey = core.getInput('llm_api_key') || core.getInput('anthropic_api_key');
     if (!apiKey) {
         // Fork PRs do not receive secrets. Skip quietly instead of failing the check.
-        core.warning('anthropic_api_key is empty (fork PR or missing secret). Skipping review.');
+        core.warning('llm_api_key / anthropic_api_key is empty (fork PR or missing secret). Skipping review.');
         return;
     }
     const configPath = core.getInput('config_path') || '.ai-review.yml';
@@ -30427,7 +30439,7 @@ async function run() {
     const target = { owner: github.context.repo.owner, repo: github.context.repo.repo, number: pr.number };
     const octokit = github.getOctokit(core.getInput('github_token', { required: true }));
     const diff = await (0, github_1.getPrDiff)(octokit, target);
-    const provider = new anthropic_1.AnthropicProvider({ apiKey, model: cfg.model });
+    const provider = (0, factory_1.createProvider)(cfg, apiKey, { baseUrl: core.getInput('llm_base_url') || undefined });
     const result = await (0, review_1.runReview)({ title: pr.title ?? '', body: pr.body ?? '', diff }, cfg, provider);
     const prRef = {
         repo: `${target.owner}/${target.repo}`,
@@ -30638,83 +30650,158 @@ async function createJiraIssues(cfg, findings, pr, alreadyCreated, fetchImpl = f
 /***/ }),
 
 /***/ 5815:
-/***/ ((__unused_webpack_module, exports) => {
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.AnthropicProvider = void 0;
-const RETRYABLE = new Set([408, 429, 500, 502, 503, 504, 529]);
+const http_1 = __nccwpck_require__(7495);
 class AnthropicProvider {
     opts;
     name = 'anthropic';
-    fetchImpl;
     constructor(opts) {
         this.opts = opts;
-        this.fetchImpl = opts.fetchImpl ?? fetch;
     }
     async complete(req) {
         const base = this.opts.baseUrl ?? process.env.ANTHROPIC_BASE_URL ?? 'https://api.anthropic.com';
-        const url = `${base.replace(/\/+$/, '')}/v1/messages`;
-        const maxRetries = this.opts.maxRetries ?? 3;
-        let lastError;
-        for (let attempt = 0; attempt <= maxRetries; attempt++) {
-            try {
-                const res = await this.fetchImpl(url, {
-                    method: 'POST',
-                    headers: {
-                        'content-type': 'application/json',
-                        'x-api-key': this.opts.apiKey,
-                        'anthropic-version': '2023-06-01',
-                    },
-                    body: JSON.stringify({
-                        model: this.opts.model,
-                        max_tokens: req.maxTokens,
-                        system: req.system,
-                        messages: req.messages,
-                    }),
-                });
-                if (!res.ok) {
-                    const body = await res.text().catch(() => '');
-                    const err = new Error(`Anthropic API ${res.status}: ${body.slice(0, 300)}`);
-                    if (RETRYABLE.has(res.status) && attempt < maxRetries) {
-                        lastError = err;
-                        await sleep(backoffMs(attempt));
-                        continue;
-                    }
-                    throw err;
-                }
-                const data = (await res.json());
-                const text = (data.content ?? [])
-                    .filter((b) => b.type === 'text' && typeof b.text === 'string')
-                    .map((b) => b.text)
-                    .join('');
-                return {
-                    text,
-                    usage: {
-                        inputTokens: data.usage?.input_tokens ?? 0,
-                        outputTokens: data.usage?.output_tokens ?? 0,
-                    },
-                };
-            }
-            catch (e) {
-                lastError = e;
-                const isHttpError = e instanceof Error && e.message.startsWith('Anthropic API');
-                if (isHttpError || attempt >= maxRetries)
-                    throw e;
-                await sleep(backoffMs(attempt)); // network error: retry
-            }
-        }
-        throw lastError;
+        const data = await (0, http_1.postJson)(`${base.replace(/\/+$/, '')}/v1/messages`, {
+            'content-type': 'application/json',
+            'x-api-key': this.opts.apiKey,
+            'anthropic-version': '2023-06-01',
+        }, { model: this.opts.model, max_tokens: req.maxTokens, system: req.system, messages: req.messages }, { label: 'Anthropic', fetchImpl: this.opts.fetchImpl ?? fetch, maxRetries: this.opts.maxRetries ?? 3 });
+        const text = (data.content ?? [])
+            .filter((b) => b.type === 'text' && typeof b.text === 'string')
+            .map((b) => b.text)
+            .join('');
+        return {
+            text,
+            usage: { inputTokens: data.usage?.input_tokens ?? 0, outputTokens: data.usage?.output_tokens ?? 0 },
+        };
     }
 }
 exports.AnthropicProvider = AnthropicProvider;
+
+
+/***/ }),
+
+/***/ 6025:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.createProvider = createProvider;
+const anthropic_1 = __nccwpck_require__(5815);
+const openai_1 = __nccwpck_require__(709);
+function createProvider(cfg, apiKey, overrides = {}) {
+    if (cfg.provider === 'openai-compatible') {
+        const baseUrl = overrides.baseUrl || cfg.base_url;
+        if (!baseUrl) {
+            throw new Error('provider "openai-compatible" needs base_url (in .ai-review.yml or the llm_base_url input).');
+        }
+        return new openai_1.OpenAICompatibleProvider({
+            apiKey,
+            model: cfg.model,
+            baseUrl,
+            reasoningEffort: cfg.reasoning_effort,
+        });
+    }
+    return new anthropic_1.AnthropicProvider({ apiKey, model: cfg.model });
+}
+
+
+/***/ }),
+
+/***/ 7495:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.postJson = postJson;
+const RETRYABLE = new Set([408, 429, 500, 502, 503, 504, 529]);
+/** POST JSON with exponential backoff; honours Retry-After on 429/5xx (capped at 60s). */
+async function postJson(url, headers, body, opts) {
+    let last;
+    for (let attempt = 0; attempt <= opts.maxRetries; attempt++) {
+        let res;
+        try {
+            res = await opts.fetchImpl(url, { method: 'POST', headers, body: JSON.stringify(body) });
+        }
+        catch (e) {
+            last = e; // network error: retry
+            if (attempt >= opts.maxRetries)
+                throw e;
+            await sleep(backoffMs(attempt));
+            continue;
+        }
+        if (!res.ok) {
+            const text = await res.text().catch(() => '');
+            const err = new Error(`${opts.label} API ${res.status}: ${text.slice(0, 300)}`);
+            if (RETRYABLE.has(res.status) && attempt < opts.maxRetries) {
+                last = err;
+                await sleep(retryAfterMs(res) ?? backoffMs(attempt));
+                continue;
+            }
+            throw err;
+        }
+        return (await res.json());
+    }
+    throw last;
+}
+function retryAfterMs(res) {
+    const raw = res.headers?.get?.('retry-after');
+    const secs = raw ? parseFloat(raw) : NaN;
+    return Number.isFinite(secs) && secs >= 0 ? Math.min(secs, 60) * 1000 : undefined;
+}
 function backoffMs(attempt) {
     return Math.min(8000, 500 * 2 ** attempt) + Math.floor(Math.random() * 250);
 }
 function sleep(ms) {
     return new Promise((r) => setTimeout(r, ms));
 }
+
+
+/***/ }),
+
+/***/ 709:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.OpenAICompatibleProvider = void 0;
+const http_1 = __nccwpck_require__(7495);
+/** Talks to any server exposing POST {baseUrl}/chat/completions (Gemini API, Ollama, OpenRouter, vLLM, ...). */
+class OpenAICompatibleProvider {
+    opts;
+    name = 'openai-compatible';
+    constructor(opts) {
+        this.opts = opts;
+    }
+    async complete(req) {
+        const body = {
+            model: this.opts.model,
+            max_tokens: req.maxTokens,
+            messages: [{ role: 'system', content: req.system }, ...req.messages],
+        };
+        if (this.opts.reasoningEffort)
+            body.reasoning_effort = this.opts.reasoningEffort;
+        const data = await (0, http_1.postJson)(`${this.opts.baseUrl.replace(/\/+$/, '')}/chat/completions`, { 'content-type': 'application/json', authorization: `Bearer ${this.opts.apiKey}` }, body, { label: 'OpenAI-compatible', fetchImpl: this.opts.fetchImpl ?? fetch, maxRetries: this.opts.maxRetries ?? 3 });
+        const content = data.choices?.[0]?.message?.content;
+        const text = Array.isArray(content)
+            ? content.map((p) => p.text ?? '').join('')
+            : typeof content === 'string'
+                ? content
+                : '';
+        return {
+            text,
+            usage: { inputTokens: data.usage?.prompt_tokens ?? 0, outputTokens: data.usage?.completion_tokens ?? 0 },
+        };
+    }
+}
+exports.OpenAICompatibleProvider = OpenAICompatibleProvider;
 
 
 /***/ }),

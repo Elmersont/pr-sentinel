@@ -1,0 +1,3 @@
+# Paid option: Anthropic API (needs credits in the Claude Console).
+provider: anthropic
+model: claude-sonnet-5-5
