@@ -4,6 +4,10 @@
 
 > 🇬🇧 [Read in English](README.md)
 
+![Revisión real de PR Sentinel sobre un PR de demostración](docs/demo-review.png)
+
+*Revisión real publicada por la action en un PR de demostración con código vulnerable a propósito (modelo `gemini-3.1-flash-lite`, nivel gratuito).*
+
 ## Qué lo diferencia
 
 - **Verificación de líneas (grounding):** cada hallazgo se contrasta con el diff parseado. Los archivos inventados se descartan y los números de línea falsos se eliminan.

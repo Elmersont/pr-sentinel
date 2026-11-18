@@ -71,6 +71,10 @@ Adds a name search that builds SQL by string concatenation.
 
 *(Format illustration produced by the end-to-end test with a stubbed model, see [`e2e/run.ts`](e2e/run.ts).)*
 
+And a real review, posted by the action on a deliberately vulnerable demo PR (model: `gemini-3.1-flash-lite`, free tier):
+
+![Real PR Sentinel review on a demo pull request](docs/demo-review.png)
+
 ## Choose a model provider
 
 PR Sentinel talks to the model through a one-method interface, and ships two implementations:
